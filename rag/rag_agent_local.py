@@ -18,7 +18,7 @@ embeddings = HuggingFaceEmbeddings(
 # ========== 2. 向量数据库 ==========
 vectordb = Chroma(
     embedding_function=embeddings,
-    persist_directory="./chroma_web"
+    persist_directory="./chroma_cases"
 )
 print(f"向量库文档数量: {vectordb._collection.count()}")
 
@@ -45,11 +45,11 @@ def retrieve_context(query: str):
     _last_retrieved_docs = retrieved_docs
     # ---------- 打印每条结果摘要 ----------
     for i, doc in enumerate(retrieved_docs, 1):
-        title  = doc.metadata.get("title",  "未知标题")
-        source = doc.metadata.get("source", "未知来源")
+        title  = doc.metadata.get("case_name", doc.metadata.get("title", "未知标题"))
+        source = doc.metadata.get("case_id",   doc.metadata.get("source", "未知来源"))
         snippet = doc.page_content[:150].replace("\n", " ").strip()
-        print(f"  [{i}] 标题: {title}")
-        print(f"       来源: {source}")
+        print(f"  [{i}] 案例名: {title}")
+        print(f"       案例ID: {source}")
         print(f"       摘要: {snippet}...")
     print("★"*50 + "\n")
     # ---------- 拼接返回字符串 ----------
@@ -71,14 +71,20 @@ print("LLM API 加载完成！")
 
 # ========== 5. Agent ==========
 SYSTEM_PROMPT = (
-    "你是一个专业的AI助手，拥有一个知识库检索工具 retrieve_context。\n"
-    "【强制规则】对于任何用户问题，你的第一步操作必须是调用 retrieve_context 工具进行检索，"
-    "禁止在调用工具之前直接回答问题。\n"
-    "调用工具后，根据检索结果组织回答。如果检索内容中没有足够信息，"
-    "请明确回答'知识库中没有找到相关信息'，"
-    "不要使用知识库外的常识补充，不要猜测，不要编造答案。\n"
-    "回答时优先依据检索结果，请用中文回答。\n"
-    "示例流程：用户提问 → 调用 retrieve_context(query=用户问题) → 阅读检索结果 → 给出回答。"
+    "你是一个专业的AI助手，拥有一个案例知识库检索工具 retrieve_context。\n"
+    "\n"
+    "【判断是否需要检索】\n"
+    "- 如果用户是闲聊、打招呼、问你是谁、问天气等与知识库无关的问题，直接用中文友好回答，不要调用工具。\n"
+    "- 如果用户提出了需要查询案例、事实、专业知识的问题，必须先调用 retrieve_context 工具检索，再基于检索结果回答。\n"
+    "\n"
+    "【检索后的回答规则】\n"
+    "- 如果检索结果与问题相关，请用中文简洁回答，并说明参考了哪些案例。\n"
+    "- 如果检索结果与问题完全无关，请回答'知识库中没有找到相关信息'，不要编造答案。\n"
+    "- 不要使用知识库外的常识补充，不要猜测。\n"
+    "\n"
+    "示例：\n"
+    "  用户: 你好 → 直接回答，不检索\n"
+    "  用户: 有没有关于XX的案例 → 调用 retrieve_context → 基于结果回答"
 )
 
 prompt = ChatPromptTemplate.from_messages([
@@ -148,10 +154,10 @@ while True:
         print("【本次回答参考的知识库来源】")
         print("-"*50)
         for i, doc in enumerate(_last_retrieved_docs, 1):
-            title  = doc.metadata.get("title",  "未知标题")
-            source = doc.metadata.get("source", "未知来源")
-            print(f"  [{i}] 标题: {title}")
-            print(f"       来源: {source}")
+            title  = doc.metadata.get("case_name", doc.metadata.get("title",  "未知标题"))
+            source = doc.metadata.get("case_id",   doc.metadata.get("source", "未知来源"))
+            print(f"  [{i}] 案例名: {title}")
+            print(f"       案例ID: {source}")
         print("-"*50)
     else:
         print("\n（本次未检索知识库，无参考来源）")
