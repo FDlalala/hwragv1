@@ -1,13 +1,13 @@
 import os
-import torch
+import warnings
+warnings.filterwarnings("ignore")
+
 from langchain.tools import tool
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline, ChatHuggingFace
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langgraph.prebuilt import create_react_agent
 from langchain_core.prompts import ChatPromptTemplate
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-import warnings
-warnings.filterwarnings("ignore")
+from langchain_openai import ChatOpenAI
 
 # ========== 1. Embeddings ==========
 print("加载 Embedding 模型...")
@@ -59,34 +59,15 @@ def retrieve_context(query: str):
     )
     return serialized, retrieved_docs
 
-# ========== 4. 本地 LLM ==========
-model_path = "/data/models/Qwen2-7B-Instruct"
-print("加载 LLM 模型...")
-
-tokenizer = AutoTokenizer.from_pretrained(
-    model_path,
-    trust_remote_code=True
+# ========== 4. API LLM ==========
+llm = ChatOpenAI(
+    model="qwen3",
+    openai_api_base="url",  # 替换为你的完整 URL
+    openai_api_key="EMPTY",          # 本地服务无需 key，填 EMPTY 即可
+    temperature=0,
+    max_tokens=512,
 )
-
-model = AutoModelForCausalLM.from_pretrained(
-    model_path,
-    dtype=torch.float16,
-    device_map="auto",
-    trust_remote_code=True
-)
-
-pipe = pipeline(
-    "text-generation",
-    model=model,
-    tokenizer=tokenizer,
-    max_new_tokens=512,
-    do_sample=False,
-    return_full_text=False
-)
-
-llm_pipeline = HuggingFacePipeline(pipeline=pipe)
-llm = ChatHuggingFace(llm=llm_pipeline)
-print("LLM 加载完成！")
+print("LLM API 加载完成！")
 
 # ========== 5. Agent ==========
 SYSTEM_PROMPT = (
