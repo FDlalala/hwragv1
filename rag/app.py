@@ -29,13 +29,15 @@ def chat_stream(user_message: str, history: list):
     rag_module._last_retrieved_docs = []
 
     # 构建消息历史（多轮对话）
-    # history 格式为新版 Gradio messages: [{"role": "user"/"assistant", "content": "..."}]
+    # Gradio 6.x history 格式: [{"role": "user"/"assistant", "content": "..."}]
     messages = []
-    for user_msg, bot_msg in history:
-        if user_msg:
-            messages.append(HumanMessage(content=user_msg))
-        if bot_msg:
-            messages.append(AIMessage(content=bot_msg))
+    for msg in history:
+        role = msg.get("role", "")
+        content = msg.get("content", "") or ""
+        if role == "user" and content:
+            messages.append(HumanMessage(content=content))
+        elif role == "assistant" and content and "⏳" not in content:
+            messages.append(AIMessage(content=content))
     messages.append(HumanMessage(content=user_message))
 
     # 流式调用 Agent
@@ -178,7 +180,7 @@ def build_ui():
         def user_submit(user_msg, history):
             """用户提交后立即把用户消息加入历史，清空输入框"""
             history = history or []
-            history.append((user_msg, None))
+            history.append({"role": "user", "content": user_msg})
             return "", history
 
         def bot_respond(history, sources):
@@ -187,17 +189,17 @@ def build_ui():
                 yield history, sources, format_sources_html(sources)
                 return
 
-            user_msg = history[-1][0]
+            user_msg = history[-1]["content"]
             # 去掉最后一条（用户消息），传入历史
             prev_history = history[:-1]
 
-            # 先 yield 占位，避免空白
-            yield history[:-1] + [(user_msg, "⏳ 思考中...")], sources, format_sources_html(sources)
+            # 先 yield 占位消息，避免空白
+            yield history + [{"role": "assistant", "content": "⏳ 思考中..."}], sources, format_sources_html(sources)
 
             for partial_text, new_sources in chat_stream(user_msg, prev_history):
                 if new_sources:
                     sources = new_sources
-                yield history[:-1] + [(user_msg, partial_text)], sources, format_sources_html(sources)
+                yield history + [{"role": "assistant", "content": partial_text}], sources, format_sources_html(sources)
 
         def clear_all():
             return [], [], "<div style='color:#888; padding:8px;'>暂无检索记录</div>"
