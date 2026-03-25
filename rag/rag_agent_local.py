@@ -99,65 +99,66 @@ agent = create_react_agent(
 )
 
 # ========== 6. 交互问答 ==========
-print("\n" + "="*50)
-print("RAG Agent 已就绪，输入 quit 退出")
-print("="*50)
+if __name__ == "__main__":
+    print("\n" + "="*50)
+    print("RAG Agent 已就绪，输入 quit 退出")
+    print("="*50)
 
-while True:
-    query = input("\n请输入问题: ").strip()
-    if query.lower() in ["quit", "exit", "q"]:
-        break
-    if not query:
-        continue
+    while True:
+        query = input("\n请输入问题: ").strip()
+        if query.lower() in ["quit", "exit", "q"]:
+            break
+        if not query:
+            continue
 
-    _last_retrieved_docs = []  # 每次提问前清空
-    print("\n" + "-"*50)
-
-    final_answer = None
-    tool_called = False
-
-    for event in agent.stream(
-        {"messages": [{"role": "user", "content": query}]},
-        stream_mode="values",
-    ):
-        last_msg = event["messages"][-1]
-        msg_type = last_msg.__class__.__name__
-
-        # 打印 AI 消息（包括工具调用请求 和 最终回答）
-        if msg_type == "AIMessage":
-            # 如果有 tool_calls，说明是工具调用请求
-            if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-                tool_called = True
-                print("\n[Agent 决策] 准备调用工具:")
-                for tc in last_msg.tool_calls:
-                    print(f"  工具名: {tc['name']}")
-                    print(f"  参数:   {tc['args']}")
-            else:
-                # 最终回答
-                final_answer = last_msg.content
-                print("\n" + "="*50)
-                print("【最终回答】")
-                print("="*50)
-                print(final_answer)
-
-        # 打印工具返回结果（ToolMessage）
-        elif msg_type == "ToolMessage":
-            print("\n[工具返回] 检索完成，内容已传递给 LLM（见上方检索日志）")
-
-    # 如果工具从未被调用，给出警告
-    if not tool_called:
-        print("\n⚠️  警告：本次回答未触发检索工具，回答可能基于模型自身知识而非知识库！")
-
-    # 打印引用来源汇总
-    if _last_retrieved_docs:
+        _last_retrieved_docs = []  # 每次提问前清空
         print("\n" + "-"*50)
-        print("【本次回答参考的知识库来源】")
-        print("-"*50)
-        for i, doc in enumerate(_last_retrieved_docs, 1):
-            title  = doc.metadata.get("case_name", doc.metadata.get("title",  "未知标题"))
-            source = doc.metadata.get("case_id",   doc.metadata.get("source", "未知来源"))
-            print(f"  [{i}] 案例名: {title}")
-            print(f"       案例ID: {source}")
-        print("-"*50)
-    else:
-        print("\n（本次未检索知识库，无参考来源）")
+
+        final_answer = None
+        tool_called = False
+
+        for event in agent.stream(
+            {"messages": [{"role": "user", "content": query}]},
+            stream_mode="values",
+        ):
+            last_msg = event["messages"][-1]
+            msg_type = last_msg.__class__.__name__
+
+            # 打印 AI 消息（包括工具调用请求 和 最终回答）
+            if msg_type == "AIMessage":
+                # 如果有 tool_calls，说明是工具调用请求
+                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                    tool_called = True
+                    print("\n[Agent 决策] 准备调用工具:")
+                    for tc in last_msg.tool_calls:
+                        print(f"  工具名: {tc['name']}")
+                        print(f"  参数:   {tc['args']}")
+                else:
+                    # 最终回答
+                    final_answer = last_msg.content
+                    print("\n" + "="*50)
+                    print("【最终回答】")
+                    print("="*50)
+                    print(final_answer)
+
+            # 打印工具返回结果（ToolMessage）
+            elif msg_type == "ToolMessage":
+                print("\n[工具返回] 检索完成，内容已传递给 LLM（见上方检索日志）")
+
+        # 如果工具从未被调用，给出警告
+        if not tool_called:
+            print("\n⚠️  警告：本次回答未触发检索工具，回答可能基于模型自身知识而非知识库！")
+
+        # 打印引用来源汇总
+        if _last_retrieved_docs:
+            print("\n" + "-"*50)
+            print("【本次回答参考的知识库来源】")
+            print("-"*50)
+            for i, doc in enumerate(_last_retrieved_docs, 1):
+                title  = doc.metadata.get("case_name", doc.metadata.get("title",  "未知标题"))
+                source = doc.metadata.get("case_id",   doc.metadata.get("source", "未知来源"))
+                print(f"  [{i}] 案例名: {title}")
+                print(f"       案例ID: {source}")
+            print("-"*50)
+        else:
+            print("\n（本次未检索知识库，无参考来源）")
