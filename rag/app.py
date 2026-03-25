@@ -10,7 +10,6 @@ app.py —— 基于 Gradio 的 RAG Agent 可视化交互界面
 
 import argparse
 import gradio as gr
-from gradio import ChatMessage
 from langchain_core.messages import HumanMessage, AIMessage
 
 # ========== 导入 Agent 核心（复用 rag_agent_local.py）==========
@@ -32,11 +31,11 @@ def chat_stream(user_message: str, history: list):
     # 构建消息历史（多轮对话）
     # history 格式为新版 Gradio messages: [{"role": "user"/"assistant", "content": "..."}]
     messages = []
-    for msg in history:
-        if msg["role"] == "user":
-            messages.append(HumanMessage(content=msg["content"]))
-        elif msg["role"] == "assistant" and msg["content"]:
-            messages.append(AIMessage(content=msg["content"]))
+    for user_msg, bot_msg in history:
+        if user_msg:
+            messages.append(HumanMessage(content=user_msg))
+        if bot_msg:
+            messages.append(AIMessage(content=bot_msg))
     messages.append(HumanMessage(content=user_message))
 
     # 流式调用 Agent
@@ -142,7 +141,6 @@ def build_ui():
                 chatbot = gr.Chatbot(
                     elem_id="chatbot",
                     label="对话",
-                    type="messages",
                 )
                 with gr.Row():
                     msg_input = gr.Textbox(
@@ -180,7 +178,7 @@ def build_ui():
         def user_submit(user_msg, history):
             """用户提交后立即把用户消息加入历史，清空输入框"""
             history = history or []
-            history.append({"role": "user", "content": user_msg})
+            history.append((user_msg, None))
             return "", history
 
         def bot_respond(history, sources):
@@ -189,24 +187,21 @@ def build_ui():
                 yield history, sources, format_sources_html(sources)
                 return
 
-            user_msg = history[-1]["content"]
+            user_msg = history[-1][0]
             # 去掉最后一条（用户消息），传入历史
             prev_history = history[:-1]
 
-            # 先 yield 一个占位消息，避免 content 为空
-            placeholder = ChatMessage(role="assistant", content="⏳ 思考中...")
-            yield history + [placeholder], sources, format_sources_html(sources)
+            # 先 yield 占位，避免空白
+            yield history[:-1] + [(user_msg, "⏳ 思考中...")], sources, format_sources_html(sources)
 
-            final_history = history
             for partial_text, new_sources in chat_stream(user_msg, prev_history):
-                bot_msg = ChatMessage(role="assistant", content=partial_text)
-                final_history = history + [bot_msg]
                 if new_sources:
                     sources = new_sources
-                yield final_history, sources, format_sources_html(sources)
+                yield history[:-1] + [(user_msg, partial_text)], sources, format_sources_html(sources)
 
         def clear_all():
             return [], [], "<div style='color:#888; padding:8px;'>暂无检索记录</div>"
+
 
         # 绑定事件
         msg_input.submit(
